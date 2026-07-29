@@ -49,3 +49,29 @@ breaking the current retrieval path.
 
 **Verdict:** Understanding and codebase boxes checked. Remaining actions: confirm
 localhost:5173 runs and add the issue to the cohort ledger.
+
+---
+
+## Week 8 — Reproduction & solution planning
+
+**Reproduction commit link:** [fill in after pushing — GitHub URL of your reproduction commit on feat/34-llm-chunk-reranking]
+
+**Reproduction summary:**
+Traced the ranking path in `HybridRetriever.retrieve()` (`rag/retriever/hybrid.py`,
+lines 92–97): the candidate chunks are filtered by `min_score`, sorted by the
+blended vector+BM25 score, and sliced to `max_chunks` — with no LLM relevance
+re-ranking anywhere between the sort and the top-k cut. Documented the gap with a
+marker comment at the insertion point and a characterization test
+(`tests/unit/test_reranker.py`) pinning the current mechanical-only ordering,
+confirming exactly where the missing re-rank hook belongs.
+
+**PLAN.md link:** https://github.com/Vanshikashah318/pathreview/blob/feat/34-llm-chunk-reranking/PLAN.md
+
+**Walkthrough video (recommended):** [optional Loom link, ≤2 min]
+
+**Blockers or open questions:**
+Need to trace how `HybridRetriever` is constructed at its call site (likely
+`agent/orchestrator.py` or a retrieval factory) to finalize the `__init__`
+signature for the `reranker` / `enable_rerank` toggle. Separately, `make run`'s
+frontend fails with a Node `crypto.getRandomValues` error (Node-version issue,
+unrelated to this backend/RAG issue) — backend + unit tests run fine.
