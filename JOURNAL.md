@@ -75,3 +75,50 @@ Need to trace how `HybridRetriever` is constructed at its call site (likely
 signature for the `reranker` / `enable_rerank` toggle. Separately, `make run`'s
 frontend fails with a Node `crypto.getRandomValues` error (Node-version issue,
 unrelated to this backend/RAG issue) — backend + unit tests run fine.
+
+---
+
+## Week 9 — Solution building & PR submission
+
+### Check-in 1 (mid-week)
+
+**Current progress:**
+Implemented all PLAN.md sub-tasks: added `rag/retriever/reranker.py`
+(`LLMReranker` + `RerankConfig`), wired an off-by-default `enable_rerank` toggle
+into `HybridRetriever`, and added `tests/unit/test_reranker.py` (9 unit tests, LLM
+mocked — all passing). Ran the full unit suite with and without my changes: 53
+pre-existing failures either way, +9 new passing tests, so my change introduces no
+new failures.
+
+**Next steps:**
+Open the draft PR, incorporate peer/mentor review feedback, then mark ready.
+
+**Blockers:**
+Repo has pre-existing `ruff`/`mypy`/test failures unrelated to this issue; confirmed
+my changes don't add to them.
+
+---
+
+### Check-in 2 (end of week)
+
+**PR link:** [fill in — your PR URL once created]
+
+**Branch:** `feat/34-llm-chunk-reranking`
+
+**What you built:**
+An optional second-stage LLM re-ranking pass for the hybrid retriever. After
+vector+BM25 blending, an opt-in reranker prompts a smaller LLM to score each
+candidate chunk's relevance and reorders before the top-k cut, so semantically
+strong chunks aren't dropped by purely mechanical scoring. Off by default, with a
+safe fallback to blended order on any LLM/parse failure.
+
+**Tests added or updated:**
+`tests/unit/test_reranker.py` — 9 tests covering relevance reordering, empty input,
+error and partial-response fallback, JSON/code-fence parsing, no input mutation, and
+both states of the `enable_rerank` toggle.
+
+**Self-review confirmation:** [ ] make check passes  [ ] make test-unit passes
+(All checks pass on the files I authored; the repo's pre-existing `ruff`/`mypy`/test
+failures in unrelated modules are documented in the PR and unaffected by this change.)
+
+**Draft PR feedback received from:** [name or Slack handle, or "none"]
