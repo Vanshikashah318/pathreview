@@ -121,4 +121,4 @@ both states of the `enable_rerank` toggle.
 (All checks pass on the files I authored; the repo's pre-existing `ruff`/`mypy`/test
 failures in unrelated modules are documented in the PR and unaffected by this change.)
 
-**Draft PR feedback received from:** [name or Slack handle, or "none"]
+**Draft PR feedback received from:** aishadeveloper
