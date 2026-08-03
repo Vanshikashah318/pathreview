@@ -54,7 +54,7 @@ localhost:5173 runs and add the issue to the cohort ledger.
 
 ## Week 8 — Reproduction & solution planning
 
-**Reproduction commit link:** https://github.com/mehakgupta9/pathreview/commit/b369655f8709cf4f5ff2bcb9396f569e035ee23d
+**Reproduction commit link:** https://github.com/Vanshikashah318/pathreview/commit/b369655f8709cf4f5ff2bcb9396f569e035ee23d
 
 **Reproduction summary:**
 Traced the ranking path in `HybridRetriever.retrieve()` (`rag/retriever/hybrid.py`,
