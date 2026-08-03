@@ -1,7 +1,7 @@
 """Tests for reranker.py and the HybridRetriever re-rank toggle (issue #34)."""
 
 import json
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -15,10 +15,11 @@ def _make_reranker() -> LLMReranker:
     return LLMReranker(config)
 
 
-def _mock_llm_response(payload: list[dict]) -> Mock:
-    """Wrap a scores payload in the OpenAI chat-completion response shape."""
+def _mock_llm_response(payload) -> Mock:
+    """Wrap a payload (JSON-serializable object or raw string) in the OpenAI
+    chat-completion response shape."""
     message = Mock()
-    message.content = json.dumps(payload)
+    message.content = payload if isinstance(payload, str) else json.dumps(payload)
     choice = Mock()
     choice.message = message
     response = Mock()
@@ -42,7 +43,11 @@ class TestLLMReranker:
         # But the LLM finds c most relevant, a least.
         reranker.client = Mock()
         reranker.client.chat.completions.create.return_value = _mock_llm_response(
-            [{"index": 0, "score": 0.1}, {"index": 1, "score": 0.5}, {"index": 2, "score": 0.9}]
+            [
+                {"index": 0, "score": 0.1},
+                {"index": 1, "score": 0.5},
+                {"index": 2, "score": 0.9},
+            ]
         )
 
         results = reranker.rerank("query", chunks, top_k=3)
@@ -72,6 +77,38 @@ class TestLLMReranker:
 
         assert [c["id"] for c in results] == ["a", "b"]
 
+    def test_rerank_partial_response_falls_back_to_blended(self):
+        """A response missing a score for any chunk falls back to blended order,
+        so a highly-blended chunk is never buried by an omitted index."""
+        reranker = _make_reranker()
+        chunks = [
+            {"id": "a", "text": "a", "score": 0.9},
+            {"id": "b", "text": "b", "score": 0.5},
+            {"id": "c", "text": "c", "score": 0.4},
+        ]
+        # LLM scores only two of the three chunks.
+        reranker.client = Mock()
+        reranker.client.chat.completions.create.return_value = _mock_llm_response(
+            [{"index": 0, "score": 0.1}, {"index": 1, "score": 0.2}]
+        )
+
+        results = reranker.rerank("query", chunks, top_k=3)
+
+        assert [c["id"] for c in results] == ["a", "b", "c"]
+
+    def test_rerank_does_not_mutate_input_chunks(self):
+        """rerank() must not add rerank_score to the caller's original dicts."""
+        reranker = _make_reranker()
+        chunks = [{"id": "a", "text": "a", "score": 0.9}]
+        reranker.client = Mock()
+        reranker.client.chat.completions.create.return_value = _mock_llm_response(
+            [{"index": 0, "score": 0.7}]
+        )
+
+        reranker.rerank("query", chunks, top_k=1)
+
+        assert "rerank_score" not in chunks[0]
+
     def test_parse_scores_skips_malformed_entries(self):
         """Malformed entries are dropped; well-formed ones are clamped to 0-1."""
         content = json.dumps(
@@ -85,6 +122,14 @@ class TestLLMReranker:
         scores = LLMReranker._parse_scores(content)
 
         assert scores == {0: 0.8, 2: 1.0}
+
+    def test_parse_scores_strips_code_fences(self):
+        """JSON wrapped in a Markdown code fence is parsed, not discarded."""
+        content = '```json\n[{"index": 0, "score": 0.6}]\n```'
+
+        scores = LLMReranker._parse_scores(content)
+
+        assert scores == {0: 0.6}
 
 
 @pytest.mark.unit
@@ -106,8 +151,7 @@ class TestHybridRerankToggle:
             enable_rerank=enable_rerank,
         )
 
-    @patch.object(HybridRetriever, "_get_all_chunks", return_value=[])
-    def test_disabled_toggle_keeps_blended_order(self, _mock_all):
+    def test_disabled_toggle_keeps_blended_order(self):
         """With rerank off, retrieve() returns the blended-score order (no-op)."""
         reranker = Mock()
         retriever = self._retriever(reranker=reranker, enable_rerank=False)
@@ -117,8 +161,7 @@ class TestHybridRerankToggle:
         reranker.rerank.assert_not_called()
         assert [r["id"] for r in results] == ["a", "b"]
 
-    @patch.object(HybridRetriever, "_get_all_chunks", return_value=[])
-    def test_enabled_toggle_delegates_to_reranker(self, _mock_all):
+    def test_enabled_toggle_delegates_to_reranker(self):
         """With rerank on, retrieve() hands the candidate set to the reranker."""
         reranker = Mock()
         reranker.rerank.return_value = [{"id": "b"}, {"id": "a"}]

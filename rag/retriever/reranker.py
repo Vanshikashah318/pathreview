@@ -7,12 +7,34 @@ to the original (blended-score) order so retrieval never breaks.
 """
 
 import json
+import re
 from dataclasses import dataclass
 
 import openai
 import structlog
 
 logger = structlog.get_logger()
+
+# Cap the chunk text sent to the scoring LLM to bound input tokens as the
+# candidate pool grows.
+MAX_CHUNK_CHARS = 500
+
+
+def _extract_json(content: str) -> object:
+    """Load a JSON payload from LLM text, tolerating ```json code fences.
+
+    Models often wrap JSON in a Markdown code fence; strip it before parsing so
+    an otherwise-valid response isn't discarded.
+
+    Args:
+        content: Raw LLM response text
+
+    Returns:
+        The parsed JSON value.
+    """
+    fenced = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", content, re.DOTALL)
+    candidate = fenced.group(1) if fenced else content
+    return json.loads(candidate)
 
 
 @dataclass
@@ -61,16 +83,22 @@ class LLMReranker:
             logger.warning("rerank_failed_fallback_to_blended", error=str(e))
             return chunks[:top_k]
 
-        # Attach scores; tiebreak on original position (stable, deterministic).
-        for i, chunk in enumerate(chunks):
-            chunk["rerank_score"] = scores.get(i, 0.0)
+        # A relevance score is required for every candidate. A partial response
+        # would bury the unscored chunks (including ones the blend ranked highly),
+        # so treat it as a failure and keep the blended order instead.
+        if len(scores) < len(chunks):
+            logger.warning(
+                "rerank_incomplete_fallback_to_blended",
+                scored=len(scores),
+                candidates=len(chunks),
+            )
+            return chunks[:top_k]
 
-        reranked = sorted(
-            enumerate(chunks),
-            key=lambda pair: (pair[1]["rerank_score"], -pair[0]),
-            reverse=True,
-        )
-        results = [chunk for _, chunk in reranked][:top_k]
+        # Copy rather than mutate the caller's dicts. Python's sort is stable, so
+        # ties preserve the incoming (blended) order.
+        scored = [dict(chunk, rerank_score=scores[i]) for i, chunk in enumerate(chunks)]
+        scored.sort(key=lambda c: c["rerank_score"], reverse=True)
+        results = scored[:top_k]
 
         logger.info("rerank_complete", candidates=len(chunks), returned=len(results))
         return results
@@ -86,7 +114,9 @@ class LLMReranker:
             Mapping of chunk index -> relevance score (0.0-1.0). Missing or
             unparseable entries are omitted (treated as 0.0 by the caller).
         """
-        numbered = "\n".join(f"[{i}] {chunk.get('text', '')}" for i, chunk in enumerate(chunks))
+        numbered = "\n".join(
+            f"[{i}] {chunk.get('text', '')[:MAX_CHUNK_CHARS]}" for i, chunk in enumerate(chunks)
+        )
         prompt = (
             f"Query: {query}\n\n"
             f"Candidate chunks:\n{numbered}\n\n"
@@ -108,7 +138,10 @@ class LLMReranker:
         if content is None:
             return {}
 
-        return self._parse_scores(content)
+        scores = self._parse_scores(content)
+        if not scores:
+            logger.warning("rerank_no_scores_parsed", content_preview=content[:120])
+        return scores
 
     @staticmethod
     def _parse_scores(content: str) -> dict[int, float]:
@@ -122,7 +155,9 @@ class LLMReranker:
             entries are skipped rather than raising.
         """
         scores: dict[int, float] = {}
-        parsed = json.loads(content)
+        parsed = _extract_json(content)
+        if not isinstance(parsed, list):
+            return scores
         for entry in parsed:
             try:
                 idx = int(entry["index"])

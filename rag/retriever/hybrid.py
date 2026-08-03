@@ -71,8 +71,7 @@ class HybridRetriever:
             query_embedding, collection_name, n_results=max_chunks * 2
         )
 
-        # Keyword search - need to fetch all chunks first
-        all_chunks = self._get_all_chunks(collection_name)
+        # Keyword search (the searcher is indexed at ingestion time).
         keyword_results = self.keyword_searcher.search(query, top_k=max_chunks * 2)
 
         # Create id-to-chunk mapping for both approaches
@@ -144,22 +143,3 @@ class HybridRetriever:
         )
 
         return final_results
-
-    def _get_all_chunks(self, collection_name: str) -> list[dict]:
-        """Fetch all chunks in a collection (for keyword indexing).
-
-        Args:
-            collection_name: Collection name
-
-        Returns:
-            List of chunk dicts
-        """
-        collection = self.vector_store.get_collection(collection_name)
-        all_docs = collection.get(include=["documents", "metadatas"])
-
-        chunks = []
-        for doc_id, text, metadata in zip(
-            all_docs["ids"], all_docs["documents"], all_docs["metadatas"], strict=False
-        ):
-            chunks.append({"id": doc_id, "text": text, "metadata": metadata})
-        return chunks
