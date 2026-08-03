@@ -101,7 +101,7 @@ my changes don't add to them.
 
 ### Check-in 2 (end of week)
 
-**PR link:** [fill in — your PR URL once created]
+**PR link:** https://github.com/ascherj/pathreview/pull/182
 
 **Branch:** `feat/34-llm-chunk-reranking`
 
