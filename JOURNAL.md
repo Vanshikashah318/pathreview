@@ -194,8 +194,7 @@ failures at the end, and I'd have designed the partial-response fallback correct
 first time instead of the reviewer catching that my code contradicted my own PLAN.
 
 **What are you most proud of?**
-That the review feedback made the code genuinely better and I engaged with all of it
-instead of getting defensive — especially turning "just silence the linter with
+That the review feedback made the code genuinely better and I engaged with all of it, especially turning "just silence the linter with
 `--no-verify`" into an honest fix that removed real overhead. The reranker is opt-in,
 fails safe, and is covered by tests that actually assert the behavior that matters
 (a semantically-better chunk beating a higher blended score), not just that the code
