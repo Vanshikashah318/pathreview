@@ -131,10 +131,6 @@ failures in unrelated modules are documented in the PR and unaffected by this ch
 
 **Feedback received:** [x] Yes (peer review via Slack)  [ ] No — still awaiting review
 
-(No maintainer/reviewer comments on the PR itself — per the Summer 2026 note, PR
-reviewer feedback isn't provided. The feedback below came from peer review in Slack
-during Week 9.)
-
 **Summary of feedback:**
 aishadeveloper reviewed the draft PR and raised five things: (1) the pre-commit
 bypass wasn't needed — the `ruff`-flagged unused `all_chunks` local was in a file
